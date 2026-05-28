@@ -3,3 +3,4 @@
 build*/
 cmake-build*/
 examples/treescan_pl10k/work/
+examples/treescan_pl10k/results/

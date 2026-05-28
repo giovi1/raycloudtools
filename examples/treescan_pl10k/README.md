@@ -13,7 +13,6 @@ docker pull ghcr.io/csiro-robotics/raycloudtools:latest
 ```
 
 All commands below are run from `examples/treescan_pl10k/` inside the repo.
-Create a `work/` subdirectory there for outputs (it is git-ignored).
 
 ---
 
@@ -51,7 +50,40 @@ python3 prep_laz.py IN.laz OUT.laz [--tree_id N] [xmin xmax ymin ymax]
 
 ---
 
-## Single-tree reconstruction
+## Single-tree reconstruction with `run_tree.sh`
+
+The easiest way to run the full pipeline on one or more trees:
+
+```bash
+./run_tree.sh /path/to/TreeScanPL10k/batch_01/Rem_Gorlice_2015_0101703.laz 1 2 5
+```
+
+Outputs land in `results/<plot_name>/tree_<id>/` (git-ignored). Each tree gets
+its own subdirectory:
+
+```
+results/
+└── Rem_Gorlice_2015_0101703/
+    ├── tree_1/
+    │   ├── tree.laz               # filtered input
+    │   ├── tree.ply               # ray cloud
+    │   ├── tree_mesh.ply          # ground mesh
+    │   ├── tree_segmented.ply     # segmented cloud (coloured by tree)
+    │   ├── tree_trees.txt         # branch cylinder model
+    │   ├── tree_trees_mesh.ply    # 3-D cylinder mesh — open in MeshLab
+    │   └── tree_trees_info.txt    # volume / DBH / height per segment
+    └── tree_2/
+        └── ...
+```
+
+To write results elsewhere: `./run_tree.sh plot.laz 1 2 --out /my/results`.
+
+The **root segment** row in `_trees_info.txt` holds the whole-tree volume total.
+Do not sum all segment volumes — that double-counts.
+
+---
+
+## Single-tree reconstruction (manual steps)
 
 Replace `1` with any `treeID` from the target file.
 
@@ -67,38 +99,27 @@ python3 prep_laz.py \
   --tree_id 1
 
 # 2. Import to ray cloud  (scanner at 0,0,0 — local plot coordinates)
-docker run --rm --network host -v "$PWD/work":/workspace -w /workspace \
+docker run --rm -v "$PWD/work":/workspace -w /workspace \
   ghcr.io/csiro-robotics/raycloudtools:latest \
   rayimport tree1.laz 0,0,0
 
 # 3. Extract ground mesh
-docker run --rm --network host -v "$PWD/work":/workspace -w /workspace \
+docker run --rm -v "$PWD/work":/workspace -w /workspace \
   ghcr.io/csiro-robotics/raycloudtools:latest \
   rayextract terrain tree1.ply
 
 # 4. Reconstruct branch cylinders
-docker run --rm --network host -v "$PWD/work":/workspace -w /workspace \
+docker run --rm -v "$PWD/work":/workspace -w /workspace \
   ghcr.io/csiro-robotics/raycloudtools:latest \
   rayextract trees tree1.ply tree1_mesh.ply
 
 # 5. Per-tree stats (volume, DBH, height)
-docker run --rm --network host -v "$PWD/work":/workspace -w /workspace \
+docker run --rm -v "$PWD/work":/workspace -w /workspace \
   ghcr.io/csiro-robotics/raycloudtools:latest \
   treeinfo tree1_trees.txt --crop_length 1
 
 sudo chown -R $USER:$USER work/
 ```
-
-**Outputs:**
-
-| File | Contents |
-|---|---|
-| `tree1.ply` | Ray cloud |
-| `tree1_mesh.ply` | Ground mesh |
-| `tree1_segmented.ply` | Segmented point cloud (coloured by tree) |
-| `tree1_trees.txt` | Branch cylinder model |
-| `tree1_trees_mesh.ply` | 3-D cylinder mesh — open in MeshLab |
-| `tree1_trees_info.txt` | Volume / DBH / height per segment |
 
 The **root segment** row in `_trees_info.txt` holds the whole-tree volume total.
 Do not sum all segment volumes — that double-counts.
@@ -124,8 +145,7 @@ For very large plots use `scripts/rayextract_trees_large.sh` (grid + overlap).
 
 ## Docker notes
 
-- `--network host` is **required** ONLY on the machine were the code was run - ignore it. `--privileged` does not fix the
-  runc sysctl error.
+- `--network host` may be required on some hosts (runc sysctl error). `--privileged` does not fix it.
 - Outputs are root-owned. Run `sudo chown -R $USER:$USER work/` after each stage.
 - The image ships RayCloudTools + TreeTools (`treeinfo`, `treecombine`).
 

@@ -40,15 +40,15 @@ ships every `ray*` tool plus [TreeTools](https://github.com/csiro-robotics/treet
 mounting a host data dir as the workspace:
 
 ```bash
-docker run --rm --network host -v "$PWD":/workspace -w /workspace \
+docker run --rm -v "$PWD":/workspace -w /workspace \
   ghcr.io/csiro-robotics/raycloudtools:latest <tool> <args>
 ```
 
-- `--network host` is **required on some hosts**: without it container start fails with a runc error
-  `open sysctl net.ipv4.ip_unprivileged_port_start ... permission denied`. `--privileged` does *not* fix
-  it; `--network host` does.
 - The container runs as **root**, so outputs are root-owned. Add `--user $(id -u):$(id -g)` to avoid
   `chown`-ing results afterwards.
+
+See `examples/treescan_pl10k/` for a worked example with the TreeScanPL10k dataset
+(includes `prep_laz.py` to handle the format-0 / no-GPS-time blocker).
 
 ### Individual-tree reconstruction / biomass pipeline
 

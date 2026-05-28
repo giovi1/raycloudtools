@@ -124,7 +124,7 @@ For very large plots use `scripts/rayextract_trees_large.sh` (grid + overlap).
 
 ## Docker notes
 
-- `--network host` is **required** on this host. `--privileged` does not fix the
+- `--network host` is **required** ONLY on the machine were the code was run - ignore it. `--privileged` does not fix the
   runc sysctl error.
 - Outputs are root-owned. Run `sudo chown -R $USER:$USER work/` after each stage.
 - The image ships RayCloudTools + TreeTools (`treeinfo`, `treecombine`).

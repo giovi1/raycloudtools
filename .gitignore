@@ -2,3 +2,4 @@
 .idea/
 build*/
 cmake-build*/
+examples/treescan_pl10k/work/

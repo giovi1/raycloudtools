@@ -32,6 +32,46 @@ e.g. 1.1.2), OpenMP, Threads.
 - `WITH_NORMAL_FIELD` (default ON) — store rays in PLY nx,ny,nz vs. rayx,rayy,rayz fields
 - `DOUBLE_RAYS` — store ray ends as doubles for large-coordinate clouds
 
+## Running the prebuilt Docker image
+
+The published image (`ghcr.io/csiro-robotics/raycloudtools:latest`, built from `docker/Dockerfile`)
+ships every `ray*` tool plus [TreeTools](https://github.com/csiro-robotics/treetools) (`treeinfo`,
+`treecombine`, `treecolour`) and is built `WITH_LAS WITH_QHULL WITH_TIFF DOUBLE_RAYS`. Typical run,
+mounting a host data dir as the workspace:
+
+```bash
+docker run --rm --network host -v "$PWD":/workspace -w /workspace \
+  ghcr.io/csiro-robotics/raycloudtools:latest <tool> <args>
+```
+
+- `--network host` is **required on some hosts**: without it container start fails with a runc error
+  `open sysctl net.ipv4.ip_unprivileged_port_start ... permission denied`. `--privileged` does *not* fix
+  it; `--network host` does.
+- The container runs as **root**, so outputs are root-owned. Add `--user $(id -u):$(id -g)` to avoid
+  `chown`-ing results afterwards.
+
+### Individual-tree reconstruction / biomass pipeline
+
+The canonical sequence (also see `scripts/rayextract_trees_large.sh` for the grid+overlap version on
+large clouds):
+`rayimport` (laz→ray cloud) → `raydecimate` (optional, e.g. `1 cm`) → `rayextract terrain` (ground mesh)
+→ `rayextract trees cloud.ply mesh.ply` (writes `_trees.txt`, `_segmented.ply`, `_trees_mesh.ply`) →
+`treeinfo _trees.txt --crop_length 1` (per-tree volume/DBH/height; volume × wood density = biomass).
+In `_trees.txt`/`_info.txt` the **root segment's `volume` field already holds the whole-tree total**
+(spec: "volume of segment / total tree volume") — sum per-segment volumes only over non-root segments,
+or just read the root value, otherwise you double-count.
+
+### LAS/LAZ import gotchas
+
+- `readLas` (`raylib/raylaz.cpp`) **rejects any file without GPS time** ("No timestamps found on laz
+  file, these are required"). LAS **point format 0/2 has no GPS time** → must be rewritten to format
+  1/3 with a (synthetic) `gps_time` before `rayimport` will accept it.
+- `rayimport cloud.laz 0,0,0` puts the sensor at the origin — correct only for **plot-/sensor-centred
+  local coordinates**. For projected/UTM clouds use `--remove_start_pos` or a constant `ray 0,0,-10`
+  model, else all rays become near-parallel pointing at a far origin.
+- Default `--max_intensity 100` maps LAS intensity to the 0–255 alpha (alpha>0 = "bounded" ray);
+  LAS extra dims (e.g. `treeID`) are **not** imported.
+
 ## Tests
 
 Tests are gated behind a CMake flag and are **integration tests**: `tests/raytest/raytests.cpp` shells out
